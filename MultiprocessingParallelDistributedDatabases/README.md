@@ -1,0 +1,1 @@
+Applying parallel search, sort, and group by joins in simulated parallel distributed databases using Python's Multiprocessing library. The parallel distributed databases are simulated using partitioning a csv file into different sections using Python lists. 
