@@ -1,0 +1,157 @@
+---
+title: "Entropy"
+author: "Ali Rizvi"
+date: "11 February 2019"
+header-includes:
+   - \usepackage{amssymb}
+   - \DeclareMathOperator*{\E}{\mathbb{E}}
+   - \DeclareMathOperator*{\V}{\mathbb{V}}
+output: html_document
+---
+
+
+## Entropy
+
+```{r message=FALSE, warning=FALSE}
+#get libraries
+library(dplyr)
+library(tidyr)
+```
+
+#### 1. Mode imputation
+
+```{r}
+
+#reading in the provided data
+data <- read.csv('FIT5197_2018_S1_Assignment1_Q2_data.csv')
+
+#calculate Mode for Each Variable:
+
+#fixing X 
+x <- table(data$X) #create table with frequencies
+#identify the max freq index and check the name of the value
+x_mode <- names(x)[which.max(x)] 
+data$X[is.na(data$X)] <- as.integer(x_mode) #replace all NAs with the mode value
+
+#fixing Y
+y <- table(data$Y) #create table with frequencies
+#identify the max freq index and check the name of the value
+y_mode <- names(y)[which.max(y)] 
+data$Y[is.na(data$Y)] <- as.integer(y_mode) #replace all NAs with the mode value
+```
+
+Output:
+
+```{r}
+#table X
+table(data$X)
+
+#table Y
+table(data$Y)
+
+```
+
+Bar Plots:
+
+```{r}
+
+barplot(table(data$X), ylim=c(0,80), xlab='Value', ylab='Counts', main='X Values')
+barplot(table(data$Y), ylim=c(0,80), xlab='Value', ylab='Counts', main='Y Values')
+
+```
+
+#### 2. Distributions
+
+```{r}
+
+# P(X)
+x <- table(data$X)/100
+x <- data.frame('P(X)'=as.vector(x), row.names=c('X=0', 'X=1'), check.names=FALSE)
+x <- t(x)
+
+# P(Y)
+y <- table(data$Y)/100
+y <- data.frame('P(Y)'=as.vector(y), row.names=c('Y=0', 'Y=1'), check.names=FALSE)
+y <- t(y)
+
+# P(X,Y)
+xy <- table(data)/100
+xy <- data.frame(xy)
+#names(xy)[1] <- 'X\\Y'
+xy <- xy %>% spread(Y, Freq)
+xy[,1] <- NULL
+row.names(xy) <- c('X=0', 'X=1')
+names(xy) <- c('Y=0', 'Y=1')
+
+# P(X|Y=0)
+probs <- xy[,1]/as.numeric(y[1,1])
+xgy0 <- data.frame('P(X|Y=0)' = probs, check.names=FALSE, row.names = c('X=0', 'X=1'))
+xgy0 <- t(xgy0)
+
+# P(X|Y=1)
+probs <- xy[,2]/as.numeric(y[1,2])
+xgy1 <- data.frame('P(X|Y=1)' = probs, check.names=FALSE, row.names = c('X=0', 'X=1'))
+xgy1 <- t(xgy1)
+
+# P(Y|X=0)
+probs <- as.vector(t(xy[1,]/as.numeric(x[1,1])))
+ygx0 <- data.frame('P(Y|X=0)' = probs, check.names=FALSE, row.names = c('Y=0', 'Y=1'))
+ygx0 <- t(ygx0)
+
+# P(Y|X=1)
+probs <- as.vector(t(xy[2,]/as.numeric(x[1,2])))
+ygx1 <- data.frame('P(Y|X=1)' = probs, check.names=FALSE, row.names = c('Y=0', 'Y=1'))
+ygx1 <- t(ygx1)
+
+
+```
+
+Output:
+
+```{r}
+
+x # P(X)
+y # P(Y)
+xy # P(X,Y)
+xgy0 # P(X|Y=0)
+xgy1 # P(X|Y=1)
+ygx0 # P(Y|X=0)
+ygx1 # P(Y|X=1)
+
+```
+
+#### 3. Entropy
+
+```{r}
+
+# H(X)
+Hx <- sum(sapply(x, function(x) x*log2(1/x)))
+    
+# H(Y)
+Hy <- sum(sapply(y, function(y) y*log2(1/y)))
+    
+# H(XY)
+Hxgy0 <- sum(sapply(xgy0, function(x) x*log2(1/x)))
+Hxgy1 <- sum(sapply(xgy1, function(x) x*log2(1/x)))
+Hxy <- y[1]*Hxgy0 + y[2]*Hxgy1
+    
+# H(YX)
+Hygx0 <- sum(sapply(ygx0, function(y) y*log2(1/y)))
+Hygx1 <- sum(sapply(ygx1, function(y) y*log2(1/y)))
+Hyx <- x[1]*Hygx0 + x[2]*Hygx1
+
+```
+
+Output:
+
+```{r}
+
+Hx # H(X)
+Hy # H(Y)
+Hxy # H(XY)
+Hyx # H(YX)
+
+```
+
+<br>
+

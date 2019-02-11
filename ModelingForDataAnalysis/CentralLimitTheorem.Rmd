@@ -1,0 +1,124 @@
+---
+title: "CentralLimitTheorem"
+author: "Ali Rizvi"
+date: "11 February 2019"
+header-includes:
+   - \usepackage{amssymb}
+   - \DeclareMathOperator*{\E}{\mathbb{E}}
+   - \DeclareMathOperator*{\V}{\mathbb{V}}
+output: html_document
+---
+
+## Central Limit Theorem
+
+#### Analytical:
+
+The central limit theorem is used to try and estimate the population parameters given a distribution that is not normally distributed. It uses the fact that the mean of the n samples of random variables from the population the sample means tend to be aproximately normally distributed as:
+
+\[
+\mathcal{N}(\mu, \frac{\sigma^2}{n})
+\]
+
+As the number of samples n from which the mean is taken or the total means taken increase the more the sample means seem to follow the normal distribution. 
+
+One of the limitations of the central limit theorem is that the mean and the variance should be provided, or else it does not work. 
+
+In this question since we are dealing with a poisson distribution we know that the lambda is 10. i.e. the mean and variance both are 10. 
+
+Knowing that with the central limit theorem we know that the theoretical mean will be the same as the original distribution $(\lambda=10)$ but the standard deviation is $\sqrt{\sigma^2/n}=\sqrt{10/10}$ since in each sample we take $n=10$ random values. 
+
+Hence in the simulation we can check that if we keep $n$ constant at 10 but increase the sample size for the means from 100, till 100,000 the sample mean and sample standard deviation should get closer and closer to the theoretical mean and theoretical standard deviation. 
+
+#### Simulation:
+
+[simulation reference](https://www.youtube.com/watch?v=fgQuGUZdVyE)
+
+```{r warning=FALSE}
+
+#stop R from printing values of 10^5 above to sci to printing values of 10^6 
+options(scipen = 1)
+
+#create samples and store mean and sd of the samples in variables
+lambda <- 10
+n <- 10
+theo_m <- lambda #calculate theoretical mean
+theo_sd <- sqrt(lambda/n) #calculate theoretical sd
+
+for (trials in c(100, 1000, 10000, 100000)) {
+    
+    data <- rpois(n*trials, lambda) #generate random variables
+    samples <- matrix(data, trials) #store in samples of 10
+    sample_means <- rowMeans(samples) #calculate means of the samples
+    
+    #create variable names as string using for loop and assign the values
+    assign(paste('s', trials, sep=''), rowMeans(samples))
+    assign(paste('m', trials, sep=''), mean(get(paste('s', trials, sep=''))))
+    assign(paste('sd', trials, sep=''), sd(get(paste('s', trials, sep=''))))
+}
+
+#creating the plots
+old <- par() #store values of old parameter before changing it 
+
+par(mfrow=c(2,2)) #create a 2x2 grid for the plots
+brk = 50 #define the number of breaks used for the plots
+
+#plot s100 
+hist(s100, breaks=brk, freq = FALSE)
+x <- seq(min(s100), max(s100), length=length(s100))
+curve(dnorm(x,m100, sd100), add=TRUE, col='blue')
+abline(v=10, col='red')
+
+#plot s1000
+hist(s1000, breaks=brk, freq = FALSE)
+x <- seq(min(s1000), max(s1000), length=length(s1000))
+curve(dnorm(x,m1000, sd1000), add=TRUE, col='blue')
+abline(v=10, col='red')
+
+#plot s10000
+hist(s10000, breaks=brk, freq = FALSE)
+x <- seq(min(s10000), max(s10000), length=length(s10000))
+curve(dnorm(x,m10000, sd10000), add=TRUE, col='blue')
+abline(v=10, col='red')
+
+#plot s100000
+hist(s100000, breaks=brk, freq = FALSE)
+x <- seq(min(s100000), max(s100000), length=length(s100000))
+curve(dnorm(x,m100000, sd100000), add=TRUE, col='blue')
+abline(v=10, col='red')
+
+par(old) #restore parameter
+```
+
+100 samples:
+```{r}
+#check mean standard deviation and difference of those with the theoretical ones
+cat('mean:', m100,'\n','sd:', sd100,'\n','difference with theoretical mean: ', 
+    theo_m-m100, '\n','difference with theoretical sd: ', theo_sd-sd100,sep = '')
+
+```
+
+1000 samples:
+```{r}
+#check mean standard deviation and difference of those with the theoretical ones
+cat('mean:', m1000,'\n','sd:', sd1000,'\n','difference with theoretical mean: ', 
+    theo_m-m1000, '\n','difference with theoretical sd: ', theo_sd-sd1000,sep = '')
+
+```
+
+10,000 samples:
+```{r}
+#check mean standard deviation and difference of those with the theoretical ones
+cat('mean:', m10000,'\n','sd:', sd10000,'\n','difference with theoretical mean: ', 
+    theo_m-m10000, '\n','difference with theoretical sd: ', theo_sd-sd10000,sep = '')
+
+```
+
+100,000 samples:
+```{r}
+#check mean standard deviation and difference of those with the theoretical ones
+cat('mean:', m100000,'\n','sd:', sd100000,'\n','difference with theoretical mean: ', 
+    theo_m-m100000, '\n','difference with theoretical sd: ', theo_sd-sd100000,sep = '')
+
+```
+
+We can see that the magnitude of the difference, regardless of the sign, between the sample means and standard deviations with the theoretical mean and standard deviations tends to decrease as the number of samples increase.

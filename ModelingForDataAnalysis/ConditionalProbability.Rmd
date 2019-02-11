@@ -1,0 +1,178 @@
+---
+title: "ConditionalProbability"
+author: "Ali Rizvi"
+date: "11 February 2019"
+header-includes:
+   - \usepackage{amssymb}
+   - \DeclareMathOperator*{\E}{\mathbb{E}}
+   - \DeclareMathOperator*{\V}{\mathbb{V}}
+output: html_document
+---
+
+
+<br>
+<br>
+
+## Question 1: calculate conditional probability of an event
+
+#### Analytical:
+
+$|S|$:
+
+Since the die is rolled seven times without replacement the total possible combinations is $6^7$. 
+
+$P(A)$:
+
+The total combinations of Event A where each side of the die should be in the sample of 7 rolls can be taken out as follows:
+
+Firstly we know that out of seven rolls six rolls should include all numbers from 1 to 6. We know that for the first of the six there are 6 possibilities. The second roll since we have already used one number, has 5 possibilities and so on till we are only left with only one possibility for the last of the six. Hence we know that we would have $6\cdot 5 \cdot 4 \cdot 3 \cdot 2 \cdot 1$ possiblities for the six out of seven throws. 
+
+For the last number that has to be repeated, we have 6 possibilities as it can take any value from 1 to 6. Also the placement of the roll matters, and we know that it can occur at any one of the 7 rolled possitions hence have ${7}\choose{1}$ possibilities for it. 
+
+Another thing to bear in mind that due to a repitition there will be two identical numbers and hence we will have to remove the double count of it. as in $1^a,1^b$ for us is identical to $1^b,1^a$ hence in our final result we have the following number of combinations:
+
+\[
+|A| = \frac{6\cdot6!\cdot7}{2}
+\]
+
+In order to find the probability for the Event A, we will have to divide our total combinations of Event A by the total combinations possible of rolling the die seven times. Hence the probability is given by:
+
+
+\[
+P(A) = \frac{6\cdot6!\cdot7}{2\cdot6^7} = 0.054
+\]
+
+$P(B)$:
+
+In event B no number can be next to iteself. This means that for the first roll there is no restriction and hence it can have any value between 1 and 6, giving us 6 possibilities. For the rest of the rolls there will be one less possible values as it is dependent on the previous one and cannot have that value. Hence for the remaining six rolls we have 5 possible values for each roll giving us the total combinations for the seven rolls to be:
+
+\[
+|B| = 6\cdot5^6
+\]
+
+The probability can then be calculated as follows:
+
+\[
+P(B) = \frac{6\cdot5^6}{6^7} = 0.335
+\]
+
+$P(A|B)$:
+
+In order to calculate this we will make use of the following formula:
+
+\[
+P(A|B) = \frac{P(A \cap B)}{P(B)}
+\]
+
+We already know the $P(B)$ so lets try and find $P(A \cap B)$. 
+
+The aproach we take is that first we try and find the total possibilities of $|A \cap \overline{B}|$. 
+
+Since Event A does occur we know that out of seven rolls we have six with combinations of $6!$. In order to make it also $\overline B$ we make sure that a number gets repeated. For the that we have two possible scenarios. 
+
+First, we can place the number at any of the positions except for the corners. This means that if we consider a roll example the repeated value can occur in any of the 5 following possitions denoted by $x$:
+
+\[
+3, x_1, 6, x_2, 2, x_3, 1, x_4, 5, x_5 , 4
+\]
+
+Also since it is between two different numbers, for a repitition to occur it can hold any of the two values. Lastly since there is a repitition we also need to remove the double counting as before.
+
+Secondly the value can occur on the sides, meaning at the extremes hence in ${2}\choose{1}$ positions. In that case it is only next to one value and hence for a repition can only have one value. Like in all previous cases we have to remove the repeated counts in this aswell. Hence the union of the two cases gives us the following:
+
+\[
+\begin{array}{ccl}
+|A \cap \overline B| &=& \dfrac{6! \cdot {{5}\choose{1}} \cdot 2}{2} + \dfrac{6! \cdot {{2}\choose{1}}}{2}\\
+&=& 6! \cdot 5 + 6!\\
+&=& 6! \cdot (5+1)\\
+&=& 6!\cdot 6\\
+&=& 4320
+\end{array}
+\]
+
+substituting this in the equation below we can obtain the following:
+
+\[
+\begin{array}{ccl}
+|A \cap B| &=& |A| - |A \cap \overline B|\\
+&=& 15120 - 4320 \\
+&=& 10800\\
+&&\\
+P(A \cap B) &=& \dfrac{10800}{6^7} \\
+&=& 0.0386
+\end{array}
+\]
+
+finally to obtain the probability of $P(A|B)$ we get:
+
+\[
+P(A|B) = \dfrac{P(A \cap B)}{P(B)} = 0.115
+\]
+
+
+#### Simulation: 
+
+```{r}
+
+#create empty list for roll storage
+l <- list()
+
+#create counts for Events A, B and AB.
+A <- 0
+B <- 0
+AB <- 0
+
+#define sample size of 100,000
+sample_size = 100000
+
+#create rolls of sample_size
+for (i in 1:sample_size) {
+  roll <- list(ceiling(runif(7, 0, 6)))
+  l <- c(l, roll)
+}
+
+#count Events
+for (roll in l) {
+  
+  #checks to see if Events occured
+  A_check <- FALSE
+  B_check <- FALSE
+  
+  #count Event A
+  if (all(1:6 %in% roll)) {
+    A <- A + 1
+    A_check <- TRUE
+  }
+  
+  #count Event B
+  counts <- rle(roll)
+  if (all(counts$lengths == 1)) {
+    B <- B + 1
+    B_check <- TRUE
+  }
+  
+  #count Event AB
+  if (A_check & B_check) {
+    AB <- AB + 1
+  }
+}
+
+#calculate Probabilities
+P_A <- A/sample_size
+P_B <- B/sample_size
+P_AB <- AB/sample_size
+P_AgB <- P_AB/P_B
+
+```
+
+Output:
+
+```{r echo=FALSE}
+#print output/probabilities
+print(paste('P(A) = ', P_A, sep=''))
+print(paste('P(B) = ', P_B, sep=''))
+print(paste('P(A&B) = ', P_AB, sep=''))
+print(paste('P(A|B) = ', P_AgB, sep=''))
+```
+
+<br>

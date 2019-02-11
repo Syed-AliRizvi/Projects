@@ -1,0 +1,41 @@
+---
+title: "InverseSampling"
+author: "Ali Rizvi"
+date: "11 February 2019"
+output: html_document
+---
+
+
+
+# Sampling
+
+## Inverse
+
+`ref: http://dkmathstats.com/example-inverse-cdf-method-r/`
+
+We know that the cdf is obtained by integrating the pdf. And that the inverse cdf is obtained by inversing the cdf function. Hence by using the given pdf we can evaluate the eqations for both the cdf and the inverse cdf. 
+
+```{r}
+pdf <- function(x) {(1.5*exp(-1.5*x))} #pdf function
+cdf <- function(x) {1 - exp(-1.5*x)} #cdf function
+invcdf <- function(x) {-log(1-x)/1.5} #inverse cdf function
+```
+
+Now lets take a 1000 random numbers between 0 and 1 using a unifrom distribution and input them in the cdf to obtain the x values. 
+
+```{r}
+# 1000 uniform variables
+x <- runif(1000) 
+
+#putting them in the inverse function
+invcdf_x <- invcdf(x)
+```
+
+Now that we have the values lets view the histogram of these. 
+
+```{r}
+#create histogram of the values
+hist(invcdf_x, freq=F, breaks=40)
+#plot the curve on the histogram
+curve(pdf, 0,5, add=TRUE, col='blue')
+```

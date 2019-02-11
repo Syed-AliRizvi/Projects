@@ -1,0 +1,121 @@
+---
+title: "CorrelationCovariance"
+author: "Ali Rizvi"
+date: "11 February 2019"
+header-includes:
+   - \usepackage{amssymb}
+   - \DeclareMathOperator*{\E}{\mathbb{E}}
+   - \DeclareMathOperator*{\V}{\mathbb{V}}
+output: html_document
+---
+
+
+## Correlations and Covariance
+
+#### Analytical:
+
+
+
+
+We know that both $X$ and $Y$ are independent standard gaussian random variables. Keeping this in mind we can try and compute the covariance and correlation between $U$ and $V$, where:
+
+\[
+\begin{array}{rcl}
+U &=& X+Y \\
+V &=& 2X + 3Y
+\end{array}
+\]
+
+Using the formulas 
+
+\[
+\begin{array}{rcl}
+Cov(X,Y) &=& \E[XY] - \E[X]\E[Y] \\
+Cov(X_1 + X_2, Y) &=& Cov(X_1,Y) + Cov(X_2,Y) \\
+\E[\alpha X] &=& \alpha \E[X] \\
+\E[XY] &=& \E[X]\E[Y]
+\end{array}
+\]
+
+we obtain the following:
+
+\[
+\begin{array}{rcl}
+Cov(X-Y, 2X+Y) &=& Cov(X,2X) + Cov(X,3Y) - Cov(Y,2X) - Cov(Y, 3Y)\\
+&=& (\E[X2X] - \E[X]\E[2X]) + (\E[X3Y] - \E[X]\E[3Y]) - (\E[X2X] \\
+&& - \E[Y]\E[2X]) - (\E[Y3Y] - \E[Y]\E[3Y])\\
+&=& [2\E[X^2] - 2\E[X]^2] + [3\E[X]\E[Y] -3\E[X]\E[Y]] - [2\E[Y]\E[X] \\
+&& - 2\E[Y]\E[X]] - [3\E[Y^2] - 3\E[Y]^2] \\ 
+&=& 2\V[X] + 0 + 0 - 3\V[Y] \\
+&=& 2\V[X] - 3\V[Y]\\
+&=& 2 - 3 \\
+&=& -1
+\end{array}
+\]
+
+Now to obtain the $Corr(U,Y)$ we make use the following formulas:
+
+\[
+\begin{array}{rcl}
+Corr(X,Y) &=& \dfrac{Cov(X,Y)}{\sigma_x \sigma_y} \\
+\V[X+Y] &=& \V[X] + \V[Y] + 2Cov(X,Y) \text{ ; $Cov(X,Y)=0$ if X and Y are independent RVs} \\
+\V[X-Y] &=& \V[X] + \V[Y] - 2Cov(X,Y) \text{ ; $Cov(X,Y)=0$ if X and Y are independent RVs} \\
+\V[\alpha X] &=& \alpha^2 \V[X]
+\end{array}
+\]
+
+Then we can calculate the following:
+
+\[
+\begin{array}{rcl}
+\V[U] &=& \V[X-Y] \\
+&=& \V[X] + \V[Y] \\
+&=& 1 + 1\\
+&=& 2\\
+&&\\
+\V[V] &=& \V[2X+3Y] \\
+&=& \V[2X] + \V[3Y] \\
+&=& 2^2\V[X] + 3^2\V[Y] \\
+&=& 4 + 9 \\
+&=& 13 \\
+&&\\
+Corr(U,V) &=& \dfrac{Cov(U,V)}{\sqrt{\V[U]\V[V]}}\\
+&=& \dfrac{-1}{\sqrt{2\cdot13}}\\
+&=& -0.196
+\end{array}
+\]
+
+#### Simulation:
+
+```{r}
+
+#generating random variables from gaussian
+x = rnorm(1000000,0,1)
+y = rnorm(1000000,0,1)
+u = x - y
+v = 2*x + 3*y
+
+#storing values 
+U <- data.frame(U=u)
+V <- data.frame(V=v)
+X <- data.frame(X=x)
+Y <- data.frame(Y=y)
+
+#calculating the variance and covariance of the Random Variables
+var_x <- var(X)
+var_y <- var(Y)
+cov_uv <- cov(U,V)
+cor_uv <- cor(U,V)
+
+```
+
+Output:
+
+```{r}
+
+cov_uv # The covariance of RVs U and V.
+cor_uv # The correlation of RVs U and V.
+
+```
+
+<br>

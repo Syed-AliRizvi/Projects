@@ -1,0 +1,89 @@
+---
+title: "MaximumLikelihoodEstimation"
+author: "Ali Rizvi"
+date: "11 February 2019"
+header-includes:
+   - \usepackage{amssymb}
+   - \DeclareMathOperator*{\E}{\mathbb{E}}
+   - \DeclareMathOperator*{\V}{\mathbb{V}}
+output: html_document
+---
+
+
+
+
+## maximum likelihood estimation of parameters
+
+For Possion the likelihood estimator is 
+
+\[
+L = \prod_{i=1}^{n} \dfrac{\lambda^{k_i} \exp(-\lambda)}{k_i!}
+\]
+
+Using this the negative log likelihood estimator $l$ where $l=-ln(L)$ is as follows:
+
+\[
+\begin{array}{rcl}
+l &=& \displaystyle \sum_{i=1}^{n} - ln \dfrac{\lambda^{k_i} \exp(-\lambda)}{k_i!}\\
+&=& \displaystyle \sum_{i=1}^{n} ( -k_iln\lambda + \lambda + lnk_i!) \\
+&=& -ln\lambda \displaystyle \sum_{i=1}^{n} k_i + n\lambda + \displaystyle \sum_{i=1}^{n} ln k_i! 
+\end{array}
+\]
+
+The data provided is of $x \in X$ where:
+
+\[
+X = \{4, 3, 2, 4, 6, 3, 4, 0, 5, 6, 4, 4, 4, 5, 3, 3, 4, 5, 4, 5\}
+\]
+
+In order to estimate $\hat{\lambda}$ we will substitute this data in our negtative log liklihood function and then differentiate it to abtain the minimum value of $\hat{\lambda}$ such that we get:
+
+\[
+\hat{\lambda} = arg_{\lambda}min(-log(p(y|\lambda)))
+\]
+
+Putting $\displaystyle \sum_{i=1}^{n}x_i = 78$ where $x_i \in X$ in to our negative log liklihood function we get:
+
+\[
+\begin{array}{rcl}
+l &=& -ln\lambda (78) + 20\lambda + \displaystyle \sum_{i=1}^{20} lnk_i!\\
+\dfrac{\partial}{\partial \lambda}l &=& -\dfrac{78}{\lambda} + 20 + 0
+\end{array}
+\]
+
+Equating the above equation to 0 in order to obtain the minimum we get:
+
+\[
+\begin{array}{rcl}
+0 &=& -\dfrac{78}{\lambda} + 20 \\
+20 &=& \dfrac{78}{\lambda} \\
+\hat{\lambda} &=& \dfrac{78}{20}\\
+&=& 3.9
+\end{array}
+\]
+
+#### Simulation:
+
+```{r warning=FALSE}
+
+#the data over which mle will be used. 
+data = c(4, 3, 2, 4, 6, 3, 4, 0, 5, 6, 4, 4, 4, 5, 3, 3, 4, 5, 4, 5)
+
+# the negative log likelihood function is created with inputs of lambda and data
+neg_pois_log_lik <- function(lambda,data){
+  # total number of observations
+  n = length(data)
+  # equation
+  return (-sum(data)*log(lambda)+n*lambda)
+}
+
+# with a starting value of 1, minimize the function! 
+mle = optim(par=1,fn=neg_pois_log_lik,data=data)
+
+#obtain the value of estimated lambda
+lambda_hat <- mle$par
+lambda_hat
+
+```
+
+<br>

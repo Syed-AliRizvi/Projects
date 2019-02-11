@@ -1,0 +1,134 @@
+---
+title: "GibbsMonteCarloSampling"
+author: "Ali Rizvi"
+date: "11 February 2019"
+output: html_document
+---
+
+
+# Sampling 
+
+## Gibbs Monte-Carlo 
+
+First lets store the probability tables in R. 
+
+```{r}
+#create C
+C = matrix(c(.5,.5), nrow=1, ncol=2) 
+dimnames(C) = list(c(),c('cf', 'ct'))
+
+#create CR
+CR = matrix(c(.8,.2,.2,.8), nrow=2, ncol=2) 
+dimnames(CR) = list(c('cf','ct'), c('rf', 'rt'))
+
+#create CS
+CS = matrix(c(.5,.9,.5,.1), nrow=2, ncol=2) 
+dimnames(CS) = list(c('cf','ct'), c('sf', 'st'))
+
+#create SRP
+SRW = matrix(c(1,.1,.1,.01,0,.9,.9,.99), nrow=4, ncol=2) 
+dimnames(SRW) = list(c('srff','srtf', 'srft', 'srtt'), c('wf', 'wt'))
+```
+
+Now lets create function to calculate the probability of obtaining a false for each value given the values of the variables that it depends on or that depend on it. 
+
+For this section we will consider, 0 as false, 1 as true.
+
+
+```{r}
+# function for c given s and r
+fc <- function(r,s) {
+    c0 <- 0.5*CS[1,s+1]*CR[1,r+1]
+    c1 <- 0.5*CS[2,s+1]*CR[2,r+1]
+    p0 <- c0/(c0+c1)
+    
+    #return probability of false
+    return (p0)
+}
+
+#function for s given c, r and w
+fs <- function(c,r,w) {
+    s0 <- CS[c+1,1] * SRW[(r*2+1)+0,w+1]
+    s1 <- CS[c+1,2] * SRW[(r*2+1)+1,w+1]
+    p0 <- s0/(s0+s1)
+    
+    #return probability of false
+    return (p0)
+}
+
+# function for r given c, s and w
+fr <- function(c,s,w) {
+    r0 <- CR[c+1,1] * SRW[s+1,w+1]
+    r1 <- CR[c+1,2] * SRW[s+3,w+1]
+    p0 <- r0/(r0+r1)
+    
+    #return probability of false
+    return (p0)
+}
+
+# function for w given s and r
+fw <- function(r,s) {
+    w0 <- SRW[ (r*2+1)+s, 1]
+    w1 <- SRW[ (r*2+1)+s, 2]
+    p0 <- w0/(w0+w1)
+    
+    #return probability of false
+    return (p0)
+}
+```
+
+Once we have the functions we can use them to sample our data. So lets first get 1000 samples.
+
+```{r}
+# setting seed
+set.seed(42)
+
+#create data frame for samples
+df <- data.frame(c=double(),r=double(),s=double(),w=double())
+
+#initialized first sample
+t <- round(runif(4,0,1))
+names(t) <- c('c','r', 's', 'w')
+
+
+#Creating samples
+for (i in 1:1000) {
+    
+    #create a new sample
+    t['c'] <- ifelse(runif(1)>fc(t['r'], t['s']), 1, 0)
+    t['r'] <- ifelse(runif(1)>fr(t['c'], t['s'], t['w']), 1, 0)
+    t['s'] <- ifelse(runif(1)>fs(t['c'], t['r'], t['w']), 1, 0)
+    t['w'] <- ifelse(runif(1)>fw(t['r'], t['s']), 1, 0)
+    
+    #add new sample to df
+    df[nrow(df)+1,] <- t
+    
+}
+```
+
+Lets remove the first hundred of these samples. and extract the joint probabilites of wetgrass adn cloudy and sprinker and rain. 
+
+```{r}
+#removing first 100 samples
+samples <- df[100:nrow(df),]
+
+#filtering samples for join probabilities
+wc <- samples[,c('w', 'c')]
+sr <- samples[,c('s', 'r')]
+```
+
+Now, lets view the joint probabilities. 
+
+#### Joint probability of Wetgrass with cloudy.
+
+```{r}
+#joint probability of wc
+table(wc) / nrow(wc)
+```
+
+#### Joint probability of Sprinker with Rain.
+
+```{r}
+#joint probability of sr
+table(sr) / nrow(sr)
+```

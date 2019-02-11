@@ -1,0 +1,72 @@
+---
+title: "RejectionSampling"
+author: "Ali Rizvi"
+date: "11 February 2019"
+output: html_document
+---
+
+
+# Sampling
+
+## Rejection
+
+#### defining pdf function in R
+
+```{r}
+#writing pdf in R
+f <- function(x) {(1.5*exp(-1.5*x))}
+```
+
+Now lets view what the curve looks like. Lets first identify the limit for x; lets check for 5.
+
+```{r}
+f(5)
+```
+
+The function value at x=5 is quite low so lets just use that as the limit. now lets just view the curve. 
+
+```{r}
+#plot pdf
+curve(f, 0,5)
+```
+
+For rejection sampling we will make use of the uniform distribution. We know for one unif we will use the limit 0 to 5, to identify x. to identify y, we will need to generate a random number from 0 to max of the function at 0. Hence lets view the value of the function at x=0.
+
+```{r}
+# checing max value of function
+ymax <- f(0)
+paste(c('ymax', ymax))
+```
+
+Now lets create a function for the sampling using two uniform distributions. 
+
+```{r}
+#function to create histgram
+f_sample <- function (n) 
+{
+    sample <- c()
+    while (1) {
+        x <- runif(1, 0, 5)
+        y <- runif(1, 0, 1.5)
+        fx <- f(x)
+        if (y < fx) {
+            sample <- c(sample, x)
+        }
+        if (length(sample) == n) {
+            return (sample)
+        }
+    }
+}
+```
+
+Once the function is created lets take out a thousand samples and then plot them with the pdf. 
+
+```{r}
+#taking a thousand samples
+sample <- f_sample(1000)
+fx <- f(seq(0,2,length.out = 1000))
+
+#creating histogram of plot
+hist(sample, freq=FALSE, breaks=40)
+curve(f, 0,5, add=TRUE, col='blue')
+```
