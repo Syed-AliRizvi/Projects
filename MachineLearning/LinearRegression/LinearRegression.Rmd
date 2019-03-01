@@ -1,0 +1,1024 @@
+---
+title: "LinearRegression"
+author: "Ali Rizvi"
+date: "31 January 2019"
+output:
+  word_document: default
+  html_document: default
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 10, fig.height = 7, fig.align = 'center')
+```
+
+
+```{r message=FALSE, warning=F, include=FALSE}
+#processing
+library(stringr)
+library(tidyverse)
+library(ggplot2)
+library(skimr)
+library(PerformanceAnalytics)
+library(magrittr)
+library(caret)
+#regression
+library(car)
+library(MASS)
+library(stats)
+library(Metrics)
+library(leaps) #stepwise selection
+library(glmnet) #ridge and lasso
+```
+
+
+```{r, echo=F}
+#function
+# for plotting statistical summary in boxplots
+stat_box_data <- function(y, upper_limit = max(y) * 1.15) {
+  return( 
+    data.frame(
+      y = .97 * upper_limit,
+      label = paste('count =', length(which(!is.na(y))), '\n',
+                    'mean =', round(mean(y, na.rm = T), 2), '\n')
+    )
+  )
+}
+```
+
+
+
+# ABSTRACT
+
+# Data import and preprocessing 
+
+
+
+```{r}
+dfc <- read.csv('N/A.csv', header=TRUE, stringsAsFactors = F)
+names(dfc) <- c("Date", "colA",     "colB", "colC",      "colD",  "colE",    "colResponse"  )
+dfc %<>% mutate(Date=as.Date(dfc$Date,'%d/%m/%Y'))
+```
+
+
+
+```{r}
+str(dfc)
+dfc %>% select_if(is.numeric) %>% skimr::skim()
+dfc %>% filter(str_detect(colE, '>|<') | str_detect(colD, '>|<'))
+```
+
+
+# fix formating
+
+```{r}
+dff <- dfc
+dff %<>% na.omit()
+dff %<>% rename(colA=colA, colB=colB, colC=colC, colE=colE, colResponse=colResponse)
+dff %<>% mutate(rem=colC-colA-colB, colE=colE/10000, colResponse=colResponse/10000)
+dff %<>% na.omit()
+dim(dff)
+```
+
+
+```{r}
+dff %>% head()
+dff %>% select_if(is.numeric) %>% skimr::skim()
+dff %>% dplyr::select(-Date) %>% chart.Correlation(my_data, histogram=TRUE, pch=19)
+```
+
+# outliers 
+
+```{r eval=FALSE, include=FALSE}
+dff %>%
+dplyr::select(-Date) %>%
+gather(type, value) %>%
+ggplot() +
+geom_boxplot(aes(type, value, fill=type)) +
+facet_wrap(~type, scales='free', nrow=1) +
+theme(legend.position = 'none')
+```
+
+```{r}
+
+dff %>%
+dplyr::select(-Date) %>%
+gather(type, value) %>%
+ggplot() +
+geom_boxplot(aes(type, value)) +
+facet_wrap(~type, scales='free', nrow=1) +
+theme(legend.position = 'none') + 
+  stat_summary(
+    aes(type, value),
+    fun.data = stat_box_data, 
+    geom = "text", 
+    hjust = 0.5,
+    vjust = 0.9
+  )
+```
+
+
+```{r}
+outcolB <- boxplot(dff$colB, plot=FALSE)$out
+outcolA <- boxplot(dff$colA, plot=FALSE)$out
+outcolResponse <- boxplot(dff$colResponse, plot=FALSE)$out
+outcolC <- boxplot(dff$colC, plot=FALSE)$out
+c('colB out', list(outcolB))
+c('colA out', list(outcolA))
+c('colResponse out', list(outcolResponse))
+c('colC out', list(outcolC))
+```
+
+```{r}
+dff %>% filter((colB<=0 | colA<=0 | colC<=0))
+dff %>% filter(colResponse %in% outcolResponse)
+dff %>% filter(colC %in% outcolC)
+dff %>% filter((colC < colA + colB) & colC %in% outcolC) %>% dim()
+dff %>% filter((colC < colA + colB)) %>% dim()
+dff %>% filter(colB %in% outcolB | colA %in% outcolA | colResponse %in% outcolResponse | colC %in% outcolC)
+```
+
+# remove outliers
+
+```{r}
+dff %<>% filter(!(colB %in% outcolB | colA %in% outcolA | colResponse %in% outcolResponse | colC %in% outcolC))
+dff %>% select_if(is.numeric) %>% skimr::skim()
+```
+
+# Check correlation after outliers
+
+
+```{r}
+dff %>% dplyr::select(-Date) %>% chart.Correlation(my_data, histogram=T, pch=19)
+dff %>% filter((colB<=0 | colA<=0))
+dff %>% dim()
+```
+
+# train and test
+
+```{r}
+set.seed(123)
+trainingRowIndex <- sample(1:nrow(dff), 0.8*nrow(dff))
+trainingData <- dff[trainingRowIndex, ]
+testData  <- dff[-trainingRowIndex, ]
+rownames(trainingData) <- NULL
+rownames(testData) <- NULL
+#training Data
+dim(trainingData)
+#test Data
+dim(testData)
+```
+
+# REGRESSIONS
+
+## simple linear
+
+```{r}
+fit.1=lm(colResponse~ colA + colB +colC + 0 , data=trainingData)
+summary(fit.1)
+par(mfrow = c(2, 2))
+plot(fit.1, which=1)
+plot(fit.1, which=2)
+plot(fit.1, which=3)
+plot(fit.1, which=5)
+mtext("Model Plots", side = 3, line = -1, outer = T)
+```
+
+### Findings:
+
+N/A
+
+### Assumptions:
+
+linearity -> T
+
+normality -> T
+constant variance -> T
+
+potential outliers -> T
+
+24, 41
+
+Influencial Terms -> T
+
+```{r}
+#removing influencial term
+trainingData <- trainingData[-41,]
+rownames(trainingData) <- NULL
+```
+
+## simple linear after removal of influencial term
+
+```{r}
+fit.1.2=lm(colResponse~ colA + colB +colC + 0 , data=trainingData)
+summary(fit.1.2)
+par(mfrow = c(2, 2))
+plot(fit.1.2, which=1)
+plot(fit.1.2, which=2)
+plot(fit.1.2, which=3)
+plot(fit.1.2, which=5)
+mtext("Model Plots", side = 3, line = -1, outer = T)
+```
+
+### Findings:
+Model moves away from linearity.
+
+All variables are significant.
+
+Adjusted R squared has increased after removal of influencial term.
+
+### Assumptions:
+
+linearity -> F
+
+normality -> T
+
+constant variance -> F
+
+potential outliers -> T
+
+24, 33
+
+Influencial Terms -> F
+
+
+## including log terms - data transformation
+Since the data is right skewed including log transforms of the data might benifit the model.
+
+
+```{r}
+fit.2=lm(colResponse~ log(colA) + log(colB) + log(colC) + colC + colB + colA + 0, data=trainingData)
+summary(fit.2)
+par(mfrow = c(2, 2))
+plot(fit.2, which=1)
+plot(fit.2, which=2)
+plot(fit.2, which=3)
+plot(fit.2, which=5)
+mtext("Model Plots", side = 3, line = -1, outer = T)
+```
+
+
+### Findings:
+
+N/A
+
+### Assumptions:
+
+linearity -> F
+
+normality -> T
+
+constant variance -> F
+
+potential outliers -> T
+
+24, 33
+
+Influencial Terms -> T
+
+38
+
+```{r}
+#removing influencial term
+trainingData <- trainingData[-38,]
+rownames(trainingData) <- NULL
+```
+
+## including log terms - data transformation - after removal of influencial term
+
+
+```{r}
+fit.2.2=lm(colResponse~ log(colA) + log(colB) + log(colC) + colC + colB + colA + 0, data=trainingData)
+summary(fit.2.2)
+par(mfrow = c(2, 2))
+plot(fit.2.2, which=1)
+plot(fit.2.2, which=2)
+plot(fit.2.2, which=3)
+plot(fit.2.2, which=5)
+mtext("Model Plots", side = 3, line = -1, outer = T)
+```
+
+### Findings:
+
+N/A
+
+### Assumptions:
+
+linearity -> F
+
+normality -> T
+
+constant variance -> F
+
+potential outliers -> T
+
+24, 33
+
+Influencial Terms -> F
+
+# adding interaction terms due to correlation between features
+
+```{r}
+fit.3=lm(colResponse~ log(colA) + log(colB) + log(colC) + colC + colB + colA + colC:colB + colC:colB:colA + colA:colC + colA:colB+0, data=trainingData)
+summary(fit.3)
+par(mfrow = c(2, 2))
+plot(fit.3, which=1)
+plot(fit.3, which=2)
+plot(fit.3, which=3)
+plot(fit.3, which=5)
+mtext("Model Plots", side = 3, line = -1, outer = T)
+
+```
+
+
+
+```{r}
+#removing influencial term
+trainingData <- trainingData[-33,]
+rownames(trainingData) <- NULL
+
+```
+
+
+```{r}
+fit.3.2=lm(colResponse~ log(colA) + log(colB) + log(colC) + colC + colB + colA + colC:colB + colC:colB:colA + colA:colC + colA:colB+0, data=trainingData)
+summary(fit.3.2)
+par(mfrow = c(2, 2))
+plot(fit.3.2, which=1)
+plot(fit.3.2, which=2)
+plot(fit.3.2, which=3)
+plot(fit.3.2, which=5)
+mtext("Model Plots", side = 3, line = -1, outer = T)
+
+```
+
+**There exists another influencial term. rerun model after its removal.**
+
+
+```{r}
+#removing influencial term
+trainingData <- trainingData[-28,]
+rownames(trainingData) <- NULL
+
+```
+
+
+```{r}
+fit.3.3=lm(colResponse~ log(colA) + log(colB) + log(colC) + colC + colB + colA + colC:colB + colC:colB:colA + colA:colC + colA:colB+0, data=trainingData)
+summary(fit.3.3)
+par(mfrow = c(2, 2))
+plot(fit.3.3, which=1)
+plot(fit.3.3, which=2)
+plot(fit.3.3, which=3)
+plot(fit.3.3, which=5)
+mtext("Model Plots", side = 3, line = -1, outer = T)
+```
+
+
+### Findings:
+
+N/A
+
+### Assumptions:
+
+linearity -> F
+
+normality -> F
+
+constant variance -> T
+
+potential outliers -> T
+
+24, 17
+
+Influencial Terms -> F
+
+
+# MOVING FORWARD 
+
+## past analysis
+In the preprocessing stage we had seen that there exists varialbe correlation.
+
+We have also seen that the data for certain features is skewed hence needing transformations.
+
+The significance of some interaction terms and log transformation terms suggests that we need to move beyond simple linear.
+
+In most models, the linearity assumption did not hold, suggesting a some what non linear relationship between the dependent and independent variables.
+
+The dataset at hand is limited with less than desirable number of datapoints to train the model. 
+
+## next steps
+The possibility of non-linearity prompts the need to include further features.
+
+Since the data set is small and number of features high, the model seems to move towards high variance in the bias variance trade-off.
+
+In order to obtain the best features required for models we move towards using feature selection methods.
+
+
+### Methods: 
+* Best subset selection method
+* forward stepwise subset selection method
+* backward stepwise subset selection method
+* lasso regularisation subset selection method 
+
+## the bias-variance trade off
+
+The methods mentioned above are dependent on the dataset provided.
+
+Since the sample size is small we need to be careful of not overfitting the model and having high variance in it.
+
+The high variance will be affected by the number of features included in the model. The higher the number of features included, the higher the amount of data required to train the features.
+
+To control the variance we can increase the dataset size, which is currently not possible, hence we will try to move towards using regularisation. Since we need to perform feature selection aswell, lasso regularisation will be used instead of others.
+
+Also, since we want the model train on limited number of data points, the dataset will need to be cleaned of potential noise. Larger datasets can overcome the noise and the model finds the underlying function easily. However, in this case since the dataset is small the noise can affect the model training intensively and hence removing any outliers or potential noise is important.
+
+Due to the removal of previous model specific influencial terms, the dataset will need to be refreshed. 
+
+
+# FEATURE SELECTION
+
+```{r}
+set.seed(123)
+trainingRowIndex <- sample(1:nrow(dff), 0.8*nrow(dff))
+trainingData <- dff[trainingRowIndex, ]
+testData  <- dff[-trainingRowIndex, ]
+rownames(trainingData) <- NULL
+rownames(testData) <- NULL
+
+```
+
+
+## best subset selection
+
+```{r}
+regfit.full <- regsubsets(colResponse~ colA + colB + colC + colB:colC + colA:colB +colA:colC + colA:colC:colB +I(colA^2)+I(colA^3) +I(colB^2)+I(colB^3)+I(colC^2)+I(colC^3) + log(colB) + log(colA) + log(colC), data=trainingData, nvmax = 16)
+reg.summary.best <- summary(regfit.full)
+reg.summary.best
+
+
+```
+
+
+### best subset selection Plots
+
+```{r}
+par(mfrow = c(2, 2))
+plot(reg.summary.best$cp, xlab = "Number of variables", ylab = "C_p", type = "l")
+points(which.min(reg.summary.best$cp), reg.summary.best$cp[which.min(reg.summary.best$cp)], col = "red", cex = 2, pch = 20)
+plot(reg.summary.best$bic, xlab = "Number of variables", ylab = "BIC", type = "l")
+points(which.min(reg.summary.best$bic), reg.summary.best$bic[which.min(reg.summary.best$bic)], col = "red", cex = 2, pch = 20)
+plot(reg.summary.best$adjr2, xlab = "Number of variables", ylab = "Adjusted R^2", type = "l")
+points(which.max(reg.summary.best$adjr2), reg.summary.best$adjr2[which.max(reg.summary.best$adjr2)], col = "red", cex = 2, pch = 20)
+plot(reg.summary.best$rss, xlab = "Number of variables", ylab = "RSS", type = "l")
+mtext("Plots of C_p, BIC, adjusted R^2 and RSS for forward stepwise selection", side = 3, line = -2, outer = TRUE)
+
+```
+
+
+### best subset selection coefficients
+
+```{r}
+paste(c('CP',which.min(reg.summary.best$cp),'BIC', which.min(reg.summary.best$bic),'adjR2',which.max(reg.summary.best$adjr2)))
+#BIC
+minbic = which.min(reg.summary.best$bic)
+coef(regfit.full, minbic)
+print(min(reg.summary.best$bic))
+#adjusted R2
+max_adjr2 = which.max(reg.summary.best$adjr2)
+coef(regfit.full, max_adjr2)
+print(max(reg.summary.best$adjr2))
+#CIP
+mincp = which.min(reg.summary.best$cp)
+coef(regfit.full, mincp)
+print(min(reg.summary.best$cp))
+```
+
+### Findings:
+
+number of features based of different tests:
+
+Cp -> 11
+
+BIC -> 11
+
+adjR2 -> 14
+
+We can see the inclusion of log terms, interation terms as well as polynomial terms with power higher than 1 in all. 
+
+
+### forward stepwise selection
+
+```{r}
+regfit.fwd <- regsubsets(colResponse~ colA + colB + colC + colB:colC + colA:colB +colA:colC + colA:colC:colB +I(colA^2)+I(colA^3) +I(colB^2)+I(colB^3)+I(colC^2)+I(colC^3) + log(colB) + log(colA) + log(colC), data=trainingData, nvmax = 16, method = "forward")
+reg.summary.fwd <- summary(regfit.fwd)
+reg.summary.fwd
+
+```
+
+
+### forward stepwise selection Plots
+
+```{r}
+par(mfrow = c(2, 2))
+plot(reg.summary.fwd$cp, xlab = "Number of variables", ylab = "C_p", type = "l")
+points(which.min(reg.summary.fwd$cp), reg.summary.fwd$cp[which.min(reg.summary.fwd$cp)], col = "red", cex = 2, pch = 20)
+plot(reg.summary.fwd$bic, xlab = "Number of variables", ylab = "BIC", type = "l")
+points(which.min(reg.summary.fwd$bic), reg.summary.fwd$bic[which.min(reg.summary.fwd$bic)], col = "red", cex = 2, pch = 20)
+plot(reg.summary.fwd$adjr2, xlab = "Number of variables", ylab = "Adjusted R^2", type = "l")
+points(which.max(reg.summary.fwd$adjr2), reg.summary.fwd$adjr2[which.max(reg.summary.fwd$adjr2)], col = "red", cex = 2, pch = 20)
+plot(reg.summary.fwd$rss, xlab = "Number of variables", ylab = "RSS", type = "l")
+mtext("Plots of C_p, BIC, adjusted R^2 and RSS for forward stepwise selection", side = 3, line = -2, outer = TRUE)
+
+```
+
+
+### forward stepwise selection coefficients
+
+```{r}
+paste(c('CP',which.min(reg.summary.fwd$cp),'BIC', which.min(reg.summary.fwd$bic),'adjR2',which.max(reg.summary.fwd$adjr2)))
+#BIC
+minbic = which.min(reg.summary.fwd$bic)
+coef(regfit.fwd, minbic)
+print(min(reg.summary.fwd$bic))
+print('')
+#adjusted R2
+max_adjr2 = which.max(reg.summary.fwd$adjr2)
+coef(regfit.fwd, max_adjr2)
+print(max(reg.summary.fwd$adjr2))
+#CP
+mincp = which.min(reg.summary.fwd$cp)
+coef(regfit.fwd, mincp)
+print(min(reg.summary.fwd$cp))
+
+```
+
+### Findings:
+
+number of features based of differnt tests:
+
+Cp -> 12
+
+BIC -> 12
+
+adjR2 -> 14
+
+We can see the inclusion of log terms, interation terms as well as polynomial terms with power higher than 1 in all. 
+
+
+### backward stepwise selection
+
+```{r}
+regfit.bwd <- regsubsets(colResponse~ colA + colB + colC + colB:colC + colA:colB +colA:colC + colA:colC:colB +I(colA^2)+I(colA^3) +I(colB^2)+I(colB^3)+I(colC^2)+I(colC^3) + log(colB) + log(colA) + log(colC), data=trainingData, nvmax = 16, method = "backward")
+reg.summary.bwd <- summary(regfit.bwd)
+reg.summary.bwd
+
+```
+
+
+### backward stepwise selection Plots
+
+```{r}
+par(mfrow = c(2, 2))
+plot(reg.summary.bwd$cp, xlab = "Number of variables", ylab = "C_p", type = "l")
+points(which.min(reg.summary.bwd$cp), reg.summary.bwd$cp[which.min(reg.summary.bwd$cp)], col = "red", cex = 2, pch = 20)
+plot(reg.summary.bwd$bic, xlab = "Number of variables", ylab = "BIC", type = "l")
+points(which.min(reg.summary.bwd$bic), reg.summary.bwd$bic[which.min(reg.summary.bwd$bic)], col = "red", cex = 2, pch = 20)
+plot(reg.summary.bwd$adjr2, xlab = "Number of variables", ylab = "Adjusted R^2", type = "l")
+points(which.max(reg.summary.bwd$adjr2), reg.summary.bwd$adjr2[which.max(reg.summary.bwd$adjr2)], col = "red", cex = 2, pch = 20)
+plot(reg.summary.bwd$rss, xlab = "Number of variables", ylab = "Adjusted R^2", type = "l")
+mtext("Plots of C_p, BIC, adjusted R^2 and RSS for backward stepwise selection", side = 3, line = -2, outer = TRUE)
+
+```
+
+
+### backward stepwise selection coefficients
+
+```{r}
+paste(c('CP',which.min(reg.summary.bwd$cp),'BIC', which.min(reg.summary.bwd$bic),'adjR2',which.max(reg.summary.bwd$adjr2)))
+#BIC
+minbic = which.min(reg.summary.bwd$bic)
+coef(regfit.bwd, minbic)
+print(min(reg.summary.bwd$bic))
+#adjusted R2
+max_adjr2 = which.max(reg.summary.bwd$adjr2)
+coef(regfit.bwd, max_adjr2)
+print(max(reg.summary.bwd$adjr2))
+#CP
+mincp = which.min(reg.summary.bwd$cp)
+coef(regfit.bwd, mincp)
+print(min(reg.summary.bwd$cp))
+```
+
+### Findings:
+
+number of features based of differnt tests:
+
+Cp -> 12
+
+BIC -> 11
+
+adjR2 -> 14
+
+We can see the inclusion of log terms, interation terms as well as polynomial terms with power higher than 1 in all.
+
+
+## Lasso regularisation
+
+```{r}
+set.seed(123)
+train.mat <- model.matrix(colResponse~ colA + colB + colC + colB:colC + colA:colB +colA:colC + colA:colC:colB +I(colA^2)+I(colA^3) +I(colB^2)+I(colB^3)+I(colC^2)+I(colC^3) + log(colB) + log(colA) + log(colC), data=trainingData)[, -1]
+test.mat <- model.matrix(colResponse~ colA + colB + colC + colB:colC + colA:colB +colA:colC + colA:colC:colB +I(colA^2)+I(colA^3) +I(colB^2)+I(colB^3)+I(colC^2)+I(colC^3) + log(colB) + log(colA) + log(colC), data = testData)[, -1]
+cv.lasso <- cv.glmnet(train.mat, trainingData$colResponse, alpha = 1)
+plot(cv.lasso)
+bestlam.lasso <- cv.lasso$lambda.min
+bestlam.lasso
+```
+
+
+### lasso regularisation coefficients
+```{r}
+fit.lasso <- glmnet(train.mat, trainingData$colResponse, alpha = 1)
+predict(fit.lasso, s = bestlam.lasso, type = "coefficients")
+
+```
+
+
+### lasso regularisation plot
+
+```{r}
+plot(fit.lasso, label = T)
+pred.lasso <- predict(fit.lasso, s = bestlam.lasso, newx = test.mat)
+mean((pred.lasso - testData$colResponse)^2)
+
+```
+
+### Findings:
+
+N/A 
+
+## feature selection reviews
+
+In all subset selection models in accordance with different tests, we have seen that the number of features best suited are around 11. BIC and CP criteria select less number of features when compared to selecting features based on the adjusted R squared value.
+
+Lasso on the other hand, finds 5 features (excluding intercept) to be best suited for the model. The mean squared error for the model is coming out to be quite low aswell. This being the model with the least amount of features as well as knowing that the variation would be controlled due to lasso regularization, the model selected by Lasso would be used for further analysis. 
+
+
+# MODEL FIT LASSO
+
+```{r}
+testData %<>% rename(colD=colD) %>% mutate(colD=colD/10000)
+head(testData)
+paste(c('pred vs colResponse MSE:', mean((pred.lasso - testData$colResponse)^2)))
+paste(c('colE vs colResponse MSE:', mean((testData$colResponse - testData$colE)^2)))
+paste(c('colD vs colResponse MSE:', mean((testData$colResponse - testData$colD)^2)))
+
+```
+
+
+
+```{r}
+actuals_preds <- data.frame(cbind(colE=testData$colE, colResponse=testData$colResponse, colD=testData$colD, predicted=pred.lasso))
+actuals_preds <- cbind(actuals_preds, Date=testData$Date)
+actuals_preds %<>% rename(Predicted = X1)
+actuals_preds %>% head(20)
+actuals_preds %>% dplyr::select(-Date) %>% colMeans()
+
+```
+
+
+## test data view - box Plots
+
+```{r, include=F, echo=F, message=F}
+actuals_preds %>%
+gather(type, value, -Date) %>%
+ggplot() +
+geom_boxplot(aes(type, value, fill=type)) +
+theme(legend.position = 'none')
+
+```
+
+
+```{r}
+means <- 
+  actuals_preds %>% 
+  dplyr::select(-Date) %>% 
+  gather(type, value) %>% 
+  group_by(type) %>% 
+  summarise(avg=round(mean(value, na.rm=T),2))
+
+actuals_preds %>%
+  dplyr::select(-Date) %>% 
+  gather(type, value) %>%
+  ggplot() + 
+  geom_boxplot(aes(type, value)) +
+  geom_point(data=means, aes(type, avg), color='red', size=2) +
+  # facet_wrap(~type, nrow=1) + 
+  theme(legend.position = 'none') + 
+  stat_summary(
+    aes(type, value),
+    fun.data = stat_box_data, 
+    geom = "text", 
+    hjust = 0.5,
+    vjust = 0.9
+  )
+```
+
+
+## test data view - prediction & other tests vs Time
+
+
+```{r}
+actuals_preds %>%
+dplyr::select(colResponse, Predicted, Date, colD, colE) %>%
+gather(type, value, -Date) %>%
+ggplot() +
+geom_line(aes(Date, value, color=type)) +
+theme(legend.position = 'top', axis.text.x = element_text(angle = 90)) +
+ggtitle('Type vs Date') +
+scale_x_date(date_labels="%d-%m-%y", breaks=testData$Date)
+
+```
+
+
+
+# FINAL FACTORS
+
+
+```{r}
+fit.lasso <- glmnet(train.mat, trainingData$colResponse, alpha = 1)
+predict(fit.lasso, s = bestlam.lasso, type = "coefficients")[which(predict(fit.lasso, s = bestlam.lasso, type = "coefficients")>0),]
+summary(dfc)
+summary(dff)
+```
+
+
+# FUTURE REMARKS
+
+N/A
+
+
+
+
+
+<!-- ```{r, eval=F, include=F} -->
+<!-- #processing -->
+<!-- library(stringr) -->
+<!-- library(tidyverse) -->
+<!-- library(ggplot2) -->
+<!-- library(skimr) -->
+<!-- library(PerformanceAnalytics) -->
+<!-- library(magrittr) -->
+<!-- library(caret) -->
+<!-- #regression -->
+<!-- library(car) -->
+<!-- library(MASS) -->
+<!-- library(stats) -->
+<!-- library(Metrics) -->
+<!-- library(leaps) #stepwise selection -->
+<!-- library(glmnet) #ridge and lasso -->
+<!-- dfc <- read.csv('dfc.csv', header=TRUE, stringsAsFactors = F) -->
+<!-- names(dfc) <- c("Date", "colA",     "colB", "colC",      "colD",  "colE",    "colResponse"  ) -->
+<!-- dfc %<>% mutate(Date=as.Date(dfc$Date,'%d/%m/%Y')) -->
+<!-- dfc %>% head() -->
+<!-- str(dfc) -->
+<!-- dfc %>% select_if(is.numeric) %>% skimr::skim() -->
+<!-- dfc %>% filter(str_detect(colE, '>|<') | str_detect(colD, '>|<')) -->
+<!-- dff <- dfc -->
+<!-- dff %<>% na.omit() -->
+<!-- dff %<>% rename(colA=colA, colB=colB, colC=colC, colE=colE, colResponse=colResponse) -->
+<!-- dff %<>% mutate(rem=colC-colA-colB, colE=colE/10000, colResponse=colResponse/10000) -->
+<!-- dff %<>% na.omit() -->
+<!-- dim(dff) -->
+<!-- dff %>% head() -->
+<!-- dff %>% select_if(is.numeric) %>% skimr::skim() -->
+<!-- dff %>% dplyr::select(-Date) %>% chart.Correlation(my_data, histogram=TRUE, pch=19) -->
+<!-- dff %>% -->
+<!-- dplyr::select(-Date) %>% -->
+<!-- gather(type, value) %>% -->
+<!-- ggplot() + -->
+<!-- geom_boxplot(aes(type, value, fill=type)) + -->
+<!-- facet_wrap(~type, scales='free', nrow=1) + -->
+<!-- theme(legend.position = 'none') -->
+<!-- outcolB <- boxplot(dff$colB, plot=FALSE)$out -->
+<!-- outcolA <- boxplot(dff$colA, plot=FALSE)$out -->
+<!-- outcolResponse <- boxplot(dff$colResponse, plot=FALSE)$out -->
+<!-- outcolC <- boxplot(dff$colC, plot=FALSE)$out -->
+<!-- c('colB out', list(outcolB)) -->
+<!-- c('colA out', list(outcolA)) -->
+<!-- c('colResponse out', list(outcolResponse)) -->
+<!-- c('colC out', list(outcolC)) -->
+<!-- dff %>% filter((colB<=0 | colA<=0 | colC<=0)) -->
+<!-- dff %>% filter(colResponse %in% outcolResponse) -->
+<!-- dff %>% filter(colC %in% outcolC) -->
+<!-- dff %>% filter((colC < colA + colB) & colC %in% outcolC) %>% dim() -->
+<!-- dff %>% filter((colC < colA + colB)) %>% dim() -->
+<!-- dff %>% filter(colB %in% outcolB | colA %in% outcolA | colResponse %in% outcolResponse | colC %in% outcolC) -->
+<!-- dff %<>% filter(!(colB %in% outcolB | colA %in% outcolA | colResponse %in% outcolResponse | colC %in% outcolC)) -->
+<!-- dff %>% select_if(is.numeric) %>% skimr::skim() -->
+<!-- dff %>% dplyr::select(-Date) %>% chart.Correlation(my_data, histogram=T, pch=19) -->
+<!-- dff %>% filter((colB<=0 | colA<=0)) -->
+<!-- dff %>% dim() -->
+<!-- set.seed(123) -->
+<!-- trainingRowIndex <- sample(1:nrow(dff), 0.8*nrow(dff)) -->
+<!-- trainingData <- dff[trainingRowIndex, ] -->
+<!-- testData  <- dff[-trainingRowIndex, ] -->
+<!-- rownames(trainingData) <- NULL -->
+<!-- rownames(testData) <- NULL -->
+<!-- #training Data -->
+<!-- dim(trainingData) -->
+<!-- #test Data -->
+<!-- dim(testData) -->
+<!-- fit.1=lm(colResponse~ colA + colB +colC + 0 , data=trainingData) -->
+<!-- summary(fit.1) -->
+<!-- par(mfrow = c(2, 2)) -->
+<!-- plot(fit.1, which=1) -->
+<!-- plot(fit.1, which=2) -->
+<!-- plot(fit.1, which=3) -->
+<!-- plot(fit.1, which=5) -->
+<!-- mtext("Model Plots", side = 3, line = -1, outer = T) -->
+<!-- #removing influencial term -->
+<!-- trainingData <- trainingData[-41,] -->
+<!-- rownames(trainingData) <- NULL -->
+<!-- fit.1.2=lm(colResponse~ colA + colB +colC + 0 , data=trainingData) -->
+<!-- summary(fit.1.2) -->
+<!-- par(mfrow = c(2, 2)) -->
+<!-- plot(fit.1.2, which=1) -->
+<!-- plot(fit.1.2, which=2) -->
+<!-- plot(fit.1.2, which=3) -->
+<!-- plot(fit.1.2, which=5) -->
+<!-- mtext("Model Plots", side = 3, line = -1, outer = T) -->
+<!-- fit.2=lm(colResponse~ log(colA) + log(colB) + log(colC) + colC + colB + colA + 0, data=trainingData) -->
+<!-- summary(fit.2) -->
+<!-- par(mfrow = c(2, 2)) -->
+<!-- plot(fit.2, which=1) -->
+<!-- plot(fit.2, which=2) -->
+<!-- plot(fit.2, which=3) -->
+<!-- plot(fit.2, which=5) -->
+<!-- mtext("Model Plots", side = 3, line = -1, outer = T) -->
+<!-- #removing influencial term -->
+<!-- trainingData <- trainingData[-38,] -->
+<!-- rownames(trainingData) <- NULL -->
+<!-- fit.2.2=lm(colResponse~ log(colA) + log(colB) + log(colC) + colC + colB + colA + 0, data=trainingData) -->
+<!-- summary(fit.2.2) -->
+<!-- par(mfrow = c(2, 2)) -->
+<!-- plot(fit.2.2, which=1) -->
+<!-- plot(fit.2.2, which=2) -->
+<!-- plot(fit.2.2, which=3) -->
+<!-- plot(fit.2.2, which=5) -->
+<!-- mtext("Model Plots", side = 3, line = -1, outer = T) -->
+<!-- fit.3=lm(colResponse~ log(colA) + log(colB) + log(colC) + colC + colB + colA + colC:colB + colC:colB:colA + colA:colC + colA:colB+0, data=trainingData) -->
+<!-- summary(fit.3) -->
+<!-- par(mfrow = c(2, 2)) -->
+<!-- plot(fit.3, which=1) -->
+<!-- plot(fit.3, which=2) -->
+<!-- plot(fit.3, which=3) -->
+<!-- plot(fit.3, which=5) -->
+<!-- mtext("Model Plots", side = 3, line = -1, outer = T) -->
+<!-- #removing influencial term -->
+<!-- trainingData <- trainingData[-33,] -->
+<!-- rownames(trainingData) <- NULL -->
+<!-- fit.3.2=lm(colResponse~ log(colA) + log(colB) + log(colC) + colC + colB + colA + colC:colB + colC:colB:colA + colA:colC + colA:colB+0, data=trainingData) -->
+<!-- summary(fit.3.2) -->
+<!-- par(mfrow = c(2, 2)) -->
+<!-- plot(fit.3.2, which=1) -->
+<!-- plot(fit.3.2, which=2) -->
+<!-- plot(fit.3.2, which=3) -->
+<!-- plot(fit.3.2, which=5) -->
+<!-- mtext("Model Plots", side = 3, line = -1, outer = T) -->
+<!-- #removing influencial term -->
+<!-- trainingData <- trainingData[-28,] -->
+<!-- rownames(trainingData) <- NULL -->
+<!-- fit.3.3=lm(colResponse~ log(colA) + log(colB) + log(colC) + colC + colB + colA + colC:colB + colC:colB:colA + colA:colC + colA:colB+0, data=trainingData) -->
+<!-- summary(fit.3.3) -->
+<!-- par(mfrow = c(2, 2)) -->
+<!-- plot(fit.3.3, which=1) -->
+<!-- plot(fit.3.3, which=2) -->
+<!-- plot(fit.3.3, which=3) -->
+<!-- plot(fit.3.3, which=5) -->
+<!-- mtext("Model Plots", side = 3, line = -1, outer = T) -->
+<!-- set.seed(123) -->
+<!-- trainingRowIndex <- sample(1:nrow(dff), 0.8*nrow(dff)) -->
+<!-- trainingData <- dff[trainingRowIndex, ] -->
+<!-- testData  <- dff[-trainingRowIndex, ] -->
+<!-- rownames(trainingData) <- NULL -->
+<!-- rownames(testData) <- NULL -->
+<!-- regfit.full <- regsubsets(colResponse~ colA + colB + colC + colB:colC + colA:colB +colA:colC + colA:colC:colB +I(colA^2)+I(colA^3) +I(colB^2)+I(colB^3)+I(colC^2)+I(colC^3) + log(colB) + log(colA) + log(colC), data=trainingData, nvmax = 16) -->
+<!-- reg.summary.best <- summary(regfit.full) -->
+<!-- reg.summary.best -->
+<!-- par(mfrow = c(2, 2)) -->
+<!-- plot(reg.summary.best$cp, xlab = "Number of variables", ylab = "C_p", type = "l") -->
+<!-- points(which.min(reg.summary.best$cp), reg.summary.best$cp[which.min(reg.summary.best$cp)], col = "red", cex = 2, pch = 20) -->
+<!-- plot(reg.summary.best$bic, xlab = "Number of variables", ylab = "BIC", type = "l") -->
+<!-- points(which.min(reg.summary.best$bic), reg.summary.best$bic[which.min(reg.summary.best$bic)], col = "red", cex = 2, pch = 20) -->
+<!-- plot(reg.summary.best$adjr2, xlab = "Number of variables", ylab = "Adjusted R^2", type = "l") -->
+<!-- points(which.max(reg.summary.best$adjr2), reg.summary.best$adjr2[which.max(reg.summary.best$adjr2)], col = "red", cex = 2, pch = 20) -->
+<!-- plot(reg.summary.best$rss, xlab = "Number of variables", ylab = "RSS", type = "l") -->
+<!-- mtext("Plots of C_p, BIC, adjusted R^2 and RSS for forward stepwise selection", side = 3, line = -2, outer = TRUE) -->
+<!-- paste(c('CP',which.min(reg.summary.best$cp),'BIC', which.min(reg.summary.best$bic),'adjR2',which.max(reg.summary.best$adjr2))) -->
+<!-- #BIC -->
+<!-- minbic = which.min(reg.summary.best$bic) -->
+<!-- coef(regfit.full, minbic) -->
+<!-- print(min(reg.summary.best$bic)) -->
+<!-- #adjusted R2 -->
+<!-- max_adjr2 = which.max(reg.summary.best$adjr2) -->
+<!-- coef(regfit.full, max_adjr2) -->
+<!-- print(max(reg.summary.best$adjr2)) -->
+<!-- #CIP -->
+<!-- mincp = which.min(reg.summary.best$cp) -->
+<!-- coef(regfit.full, mincp) -->
+<!-- print(min(reg.summary.best$cp)) -->
+<!-- regfit.fwd <- regsubsets(colResponse~ colA + colB + colC + colB:colC + colA:colB +colA:colC + colA:colC:colB +I(colA^2)+I(colA^3) +I(colB^2)+I(colB^3)+I(colC^2)+I(colC^3) + log(colB) + log(colA) + log(colC), data=trainingData, nvmax = 16, method = "forward") -->
+<!-- reg.summary.fwd <- summary(regfit.fwd) -->
+<!-- reg.summary.fwd -->
+<!-- par(mfrow = c(2, 2)) -->
+<!-- plot(reg.summary.fwd$cp, xlab = "Number of variables", ylab = "C_p", type = "l") -->
+<!-- points(which.min(reg.summary.fwd$cp), reg.summary.fwd$cp[which.min(reg.summary.fwd$cp)], col = "red", cex = 2, pch = 20) -->
+<!-- plot(reg.summary.fwd$bic, xlab = "Number of variables", ylab = "BIC", type = "l") -->
+<!-- points(which.min(reg.summary.fwd$bic), reg.summary.fwd$bic[which.min(reg.summary.fwd$bic)], col = "red", cex = 2, pch = 20) -->
+<!-- plot(reg.summary.fwd$adjr2, xlab = "Number of variables", ylab = "Adjusted R^2", type = "l") -->
+<!-- points(which.max(reg.summary.fwd$adjr2), reg.summary.fwd$adjr2[which.max(reg.summary.fwd$adjr2)], col = "red", cex = 2, pch = 20) -->
+<!-- plot(reg.summary.fwd$rss, xlab = "Number of variables", ylab = "RSS", type = "l") -->
+<!-- mtext("Plots of C_p, BIC, adjusted R^2 and RSS for forward stepwise selection", side = 3, line = -2, outer = TRUE) -->
+<!-- paste(c('CP',which.min(reg.summary.fwd$cp),'BIC', which.min(reg.summary.fwd$bic),'adjR2',which.max(reg.summary.fwd$adjr2))) -->
+<!-- #BIC -->
+<!-- minbic = which.min(reg.summary.fwd$bic) -->
+<!-- coef(regfit.fwd, minbic) -->
+<!-- print(min(reg.summary.fwd$bic)) -->
+<!-- print('') -->
+<!-- #adjusted R2 -->
+<!-- max_adjr2 = which.max(reg.summary.fwd$adjr2) -->
+<!-- coef(regfit.fwd, max_adjr2) -->
+<!-- print(max(reg.summary.fwd$adjr2)) -->
+<!-- #CP -->
+<!-- mincp = which.min(reg.summary.fwd$cp) -->
+<!-- coef(regfit.fwd, mincp) -->
+<!-- print(min(reg.summary.fwd$cp)) -->
+<!-- regfit.bwd <- regsubsets(colResponse~ colA + colB + colC + colB:colC + colA:colB +colA:colC + colA:colC:colB +I(colA^2)+I(colA^3) +I(colB^2)+I(colB^3)+I(colC^2)+I(colC^3) + log(colB) + log(colA) + log(colC), data=trainingData, nvmax = 16, method = "backward") -->
+<!-- reg.summary.bwd <- summary(regfit.bwd) -->
+<!-- reg.summary.bwd -->
+<!-- par(mfrow = c(2, 2)) -->
+<!-- plot(reg.summary.bwd$cp, xlab = "Number of variables", ylab = "C_p", type = "l") -->
+<!-- points(which.min(reg.summary.bwd$cp), reg.summary.bwd$cp[which.min(reg.summary.bwd$cp)], col = "red", cex = 2, pch = 20) -->
+<!-- plot(reg.summary.bwd$bic, xlab = "Number of variables", ylab = "BIC", type = "l") -->
+<!-- points(which.min(reg.summary.bwd$bic), reg.summary.bwd$bic[which.min(reg.summary.bwd$bic)], col = "red", cex = 2, pch = 20) -->
+<!-- plot(reg.summary.bwd$adjr2, xlab = "Number of variables", ylab = "Adjusted R^2", type = "l") -->
+<!-- points(which.max(reg.summary.bwd$adjr2), reg.summary.bwd$adjr2[which.max(reg.summary.bwd$adjr2)], col = "red", cex = 2, pch = 20) -->
+<!-- plot(reg.summary.bwd$rss, xlab = "Number of variables", ylab = "Adjusted R^2", type = "l") -->
+<!-- mtext("Plots of C_p, BIC, adjusted R^2 and RSS for backward stepwise selection", side = 3, line = -2, outer = TRUE) -->
+<!-- paste(c('CP',which.min(reg.summary.bwd$cp),'BIC', which.min(reg.summary.bwd$bic),'adjR2',which.max(reg.summary.bwd$adjr2))) -->
+<!-- #BIC -->
+<!-- minbic = which.min(reg.summary.bwd$bic) -->
+<!-- coef(regfit.bwd, minbic) -->
+<!-- print(min(reg.summary.bwd$bic)) -->
+<!-- #adjusted R2 -->
+<!-- max_adjr2 = which.max(reg.summary.bwd$adjr2) -->
+<!-- coef(regfit.bwd, max_adjr2) -->
+<!-- print(max(reg.summary.bwd$adjr2)) -->
+<!-- #CP -->
+<!-- mincp = which.min(reg.summary.bwd$cp) -->
+<!-- coef(regfit.bwd, mincp) -->
+<!-- print(min(reg.summary.bwd$cp)) -->
+<!-- set.seed(123) -->
+<!-- train.mat <- model.matrix(colResponse~ colA + colB + colC + colB:colC + colA:colB +colA:colC + colA:colC:colB +I(colA^2)+I(colA^3) +I(colB^2)+I(colB^3)+I(colC^2)+I(colC^3) + log(colB) + log(colA) + log(colC), data=trainingData)[, -1] -->
+<!-- test.mat <- model.matrix(colResponse~ colA + colB + colC + colB:colC + colA:colB +colA:colC + colA:colC:colB +I(colA^2)+I(colA^3) +I(colB^2)+I(colB^3)+I(colC^2)+I(colC^3) + log(colB) + log(colA) + log(colC), data = testData)[, -1] -->
+<!-- cv.lasso <- cv.glmnet(train.mat, trainingData$colResponse, alpha = 1) -->
+<!-- plot(cv.lasso) -->
+<!-- bestlam.lasso <- cv.lasso$lambda.min -->
+<!-- bestlam.lasso -->
+<!-- fit.lasso <- glmnet(train.mat, trainingData$colResponse, alpha = 1) -->
+<!-- predict(fit.lasso, s = bestlam.lasso, type = "coefficients") -->
+<!-- plot(fit.lasso, label = T) -->
+<!-- pred.lasso <- predict(fit.lasso, s = bestlam.lasso, newx = test.mat) -->
+<!-- mean((pred.lasso - testData$colResponse)^2) -->
+<!-- testData %<>% rename(colD=colD) %>% mutate(colD=colD/10000) -->
+<!-- head(testData) -->
+<!-- paste(c('pred vs colResponse MSE:', mean((pred.lasso - testData$colResponse)^2))) -->
+<!-- paste(c('colE vs colResponse MSE:', mean((testData$colResponse - testData$colE)^2))) -->
+<!-- paste(c('colD vs colResponse MSE:', mean((testData$colResponse - testData$colD)^2))) -->
+<!-- actuals_preds <- data.frame(cbind(colE=testData$colE, colResponse=testData$colResponse, colD=testData$colD, predicted=pred.lasso)) -->
+<!-- actuals_preds <- cbind(actuals_preds, Date=testData$Date) -->
+<!-- actuals_preds %<>% rename(Predicted = X1) -->
+<!-- actuals_preds %>% head(20) -->
+<!-- actuals_preds %>% dplyr::select(-Date) %>% colMeans() -->
+<!-- actuals_preds %>% -->
+<!-- gather(type, value, -Date) %>% -->
+<!-- ggplot() + -->
+<!-- geom_boxplot(aes(type, value, fill=type)) + -->
+<!-- theme(legend.position = 'none') -->
+<!-- actuals_preds %>% -->
+<!-- dplyr::select(colResponse, Predicted, Date, colD, colE) %>% -->
+<!-- gather(type, value, -Date) %>% -->
+<!-- ggplot() + -->
+<!-- geom_line(aes(Date, value, color=type)) + -->
+<!-- theme(legend.position = 'top', axis.text.x = element_text(angle = 90)) + -->
+<!-- ggtitle('Type vs Date') + -->
+<!-- scale_x_date(date_labels="%d-%m-%y", breaks=testData$Date) -->
+<!-- fit.lasso <- glmnet(train.mat, trainingData$colResponse, alpha = 1) -->
+<!-- predict(fit.lasso, s = bestlam.lasso, type = "coefficients")[which(predict(fit.lasso, s = bestlam.lasso, type = "coefficients")>0),] -->
+<!-- summary(dfc) -->
+<!-- summary(dff) -->
+
+<!-- ``` -->
+
+
